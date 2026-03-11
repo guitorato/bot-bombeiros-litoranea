@@ -15,7 +15,7 @@ async def on_ready():
 
 @bot.event
 async def on_member_join(member):
-    canal = discord.utils.get(member.guild.text_channels, name="boas-vindas")
+    canal = discord.utils.get(member.guild.text_channels, name="☀️┇entrou")
 
     if canal:
         await canal.send(
