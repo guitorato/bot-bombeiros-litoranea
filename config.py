@@ -31,7 +31,7 @@ Aprovado nas duas etapas, o candidato será integrado ao **Corpo de Bombeiros de
 
 💰 **Taxa do concurso**
 
-Para participar é necessário possuir o **Passaporte 1460**  
+Para participar é necessário realizar o pagamento para o **Passaporte 1460**  
 Valor: **R$ 200,00**
 
 Após efetuar o pagamento, utilize o botão abaixo para realizar sua inscrição.
