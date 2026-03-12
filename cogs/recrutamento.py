@@ -3,6 +3,9 @@ from discord.ext import commands
 import config
 
 
+# -----------------------------
+# MODAL DE INSCRIÇÃO
+# -----------------------------
 class InscricaoModal(discord.ui.Modal, title="Inscrição Bombeiros"):
 
     nome = discord.ui.TextInput(label="Nome In-Game")
@@ -16,6 +19,9 @@ class InscricaoModal(discord.ui.Modal, title="Inscrição Bombeiros"):
         guild = interaction.guild
         member = interaction.user
 
+        # -----------------------------
+        # ALTERAR NICKNAME
+        # -----------------------------
         nickname = f"[INS] {self.passaporte.value} | {self.nome.value}"
 
         if len(nickname) > 32:
@@ -25,11 +31,17 @@ class InscricaoModal(discord.ui.Modal, title="Inscrição Bombeiros"):
 
         await member.edit(nick=nickname)
 
+        # -----------------------------
+        # ADICIONAR CARGO INSCRITO
+        # -----------------------------
         role = guild.get_role(config.CARGO_INSCRITO)
 
         if role:
             await member.add_roles(role)
 
+        # -----------------------------
+        # ENVIAR PARA PAINEL DE CONFIRMAÇÃO
+        # -----------------------------
         canal_confirmacao = guild.get_channel(config.CONFIRMAR_INSCRICAO_CHANNEL_ID)
 
         embed = discord.Embed(
@@ -37,7 +49,7 @@ class InscricaoModal(discord.ui.Modal, title="Inscrição Bombeiros"):
             color=discord.Color.orange()
         )
 
-        embed.add_field(name="Candidato", value=member.mention)
+        embed.add_field(name="Candidato", value=member.mention, inline=False)
         embed.add_field(name="Nome", value=self.nome.value)
         embed.add_field(name="Passaporte", value=self.passaporte.value)
         embed.add_field(name="Idade", value=self.idade.value)
@@ -50,23 +62,30 @@ class InscricaoModal(discord.ui.Modal, title="Inscrição Bombeiros"):
         )
 
         await interaction.response.send_message(
-            "✅ Inscrição enviada com sucesso.",
+            "✅ Sua inscrição foi enviada com sucesso.",
             ephemeral=True
         )
 
 
+# -----------------------------
+# BOTÕES DE APROVAÇÃO
+# -----------------------------
 class PainelRecrutamento(discord.ui.View):
 
     def __init__(self, membro):
         super().__init__(timeout=None)
         self.membro = membro
 
+
+    # -----------------------------
+    # APROVAR
+    # -----------------------------
     @discord.ui.button(label="Aprovar", style=discord.ButtonStyle.green)
     async def aprovar(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if not any(role.id == config.CARGO_RECRUTADOR for role in interaction.user.roles):
             await interaction.response.send_message(
-                "Você não tem permissão.",
+                "❌ Você não tem permissão.",
                 ephemeral=True
             )
             return
@@ -90,15 +109,19 @@ class PainelRecrutamento(discord.ui.View):
         await self.membro.edit(nick=nick)
 
         await interaction.response.send_message(
-            f"✅ {self.membro.mention} aprovado."
+            f"✅ {self.membro.mention} foi aprovado."
         )
 
+
+    # -----------------------------
+    # REPROVAR
+    # -----------------------------
     @discord.ui.button(label="Reprovar", style=discord.ButtonStyle.red)
     async def reprovar(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if not any(role.id == config.CARGO_RECRUTADOR for role in interaction.user.roles):
             await interaction.response.send_message(
-                "Você não tem permissão.",
+                "❌ Você não tem permissão.",
                 ephemeral=True
             )
             return
@@ -111,56 +134,82 @@ class PainelRecrutamento(discord.ui.View):
         await self.membro.edit(nick=None)
 
         await interaction.response.send_message(
-            f"❌ {self.membro.mention} reprovado."
+            f"❌ {self.membro.mention} foi reprovado."
         )
 
 
+# -----------------------------
+# BOTÃO DO EDITAL
+# -----------------------------
 class EditalView(discord.ui.View):
+
+    def __init__(self):
+        super().__init__(timeout=None)
 
     @discord.ui.button(label="Realizar Inscrição", style=discord.ButtonStyle.red)
     async def inscrever(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(InscricaoModal())
 
 
+# -----------------------------
+# COG PRINCIPAL
+# -----------------------------
 class Recrutamento(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
 
 
+    # -----------------------------
+    # CRIAR EDITAL AUTOMÁTICO
+    # -----------------------------
     @commands.Cog.listener()
     async def on_ready(self):
 
         guild = self.bot.get_guild(config.GUILD_ID)
+
+        if not guild:
+            return
+
         canal = guild.get_channel(config.EDITAL_CHANNEL_ID)
 
-        mensagens = [msg async for msg in canal.history(limit=10)]
+        if not canal:
+            print("❌ Canal do edital não encontrado")
+            return
 
-        if not mensagens:
+        async for msg in canal.history(limit=20):
 
-            embed = discord.Embed(
-                title="🚒 EDITAL DE RECRUTAMENTO",
-                description="""
-Processo seletivo do Corpo de Bombeiros de Litorânea.
+            if msg.author == self.bot.user and msg.embeds:
+                if msg.embeds[0].title == "🚒 EDITAL DE RECRUTAMENTO":
+                    print("📋 Edital já existe")
+                    return
 
-1️⃣ Prova Escrita  
-20 questões de múltipla escolha  
-mínimo de 70% de acerto
+        embed = discord.Embed(
+            title="🚒 EDITAL DE RECRUTAMENTO",
+            description="""
+Processo seletivo do **Corpo de Bombeiros de Litorânea**.
 
-2️⃣ Teste de Aptidão Física  
-avalia comportamento e desempenho
+📘 **1ª Etapa — Prova Escrita**
+• 20 questões de múltipla escolha  
+• mínimo de **70% de acerto**
 
-Para participar é necessário possuir:
+💪 **2ª Etapa — Teste de Aptidão Física**
+• avaliação de comportamento  
+• respeito à hierarquia  
+• desempenho físico
 
-Passaporte 1460  
-Valor: R$200
+💰 **Taxa de inscrição**
+Passaporte **1460**  
+Valor **R$200**
 
-Clique no botão abaixo para se inscrever.
+Clique no botão abaixo para realizar sua inscrição.
 """,
-                color=discord.Color.red()
-            )
+            color=discord.Color.red()
+        )
 
-            await canal.send(embed=embed, view=EditalView())
+        await canal.send(embed=embed, view=EditalView())
+
+        print("✅ Edital enviado automaticamente")
 
 
 async def setup(bot):
