@@ -2,7 +2,8 @@ import discord
 from discord.ext import commands
 import config
 
-class FormModal(discord.ui.Modal, title="Inscrição Bombeiros"):
+
+class InscricaoModal(discord.ui.Modal, title="Inscrição Bombeiros"):
 
     nome = discord.ui.TextInput(label="Nome In-Game")
     idade = discord.ui.TextInput(label="Idade")
@@ -15,12 +16,12 @@ class FormModal(discord.ui.Modal, title="Inscrição Bombeiros"):
         guild = interaction.guild
         member = interaction.user
 
-        nickname = f"[INS] {self.passaporte} | {self.nome}"
+        nickname = f"[INS] {self.passaporte.value} | {self.nome.value}"
 
         if len(nickname) > 32:
             excesso = len(nickname) - 32
             nome_cortado = self.nome.value[:-excesso]
-            nickname = f"[INS] {self.passaporte} | {nome_cortado}"
+            nickname = f"[INS] {self.passaporte.value} | {nome_cortado}"
 
         await member.edit(nick=nickname)
 
@@ -29,60 +30,138 @@ class FormModal(discord.ui.Modal, title="Inscrição Bombeiros"):
         if role:
             await member.add_roles(role)
 
+        canal_confirmacao = guild.get_channel(config.CONFIRMAR_INSCRICAO_CHANNEL_ID)
+
+        embed = discord.Embed(
+            title="📋 Nova Inscrição",
+            color=discord.Color.orange()
+        )
+
+        embed.add_field(name="Candidato", value=member.mention)
+        embed.add_field(name="Nome", value=self.nome.value)
+        embed.add_field(name="Passaporte", value=self.passaporte.value)
+        embed.add_field(name="Idade", value=self.idade.value)
+        embed.add_field(name="Telefone", value=self.telefone.value)
+        embed.add_field(name="Pagamento", value=self.pagamento.value)
+
+        await canal_confirmacao.send(
+            embed=embed,
+            view=PainelRecrutamento(member)
+        )
+
         await interaction.response.send_message(
-            "Inscrição enviada com sucesso.",
+            "✅ Inscrição enviada com sucesso.",
             ephemeral=True
         )
 
-class InscricaoView(discord.ui.View):
+
+class PainelRecrutamento(discord.ui.View):
+
+    def __init__(self, membro):
+        super().__init__(timeout=None)
+        self.membro = membro
+
+    @discord.ui.button(label="Aprovar", style=discord.ButtonStyle.green)
+    async def aprovar(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        if not any(role.id == config.CARGO_RECRUTADOR for role in interaction.user.roles):
+            await interaction.response.send_message(
+                "Você não tem permissão.",
+                ephemeral=True
+            )
+            return
+
+        guild = interaction.guild
+
+        role_inscrito = guild.get_role(config.CARGO_INSCRITO)
+        role_aprovado = guild.get_role(config.CARGO_INSCRICAO_REALIZADA)
+
+        if role_inscrito:
+            await self.membro.remove_roles(role_inscrito)
+
+        if role_aprovado:
+            await self.membro.add_roles(role_aprovado)
+
+        nick = self.membro.nick.replace("[INS]", "[INS-OK]")
+
+        if len(nick) > 32:
+            nick = nick[:32]
+
+        await self.membro.edit(nick=nick)
+
+        await interaction.response.send_message(
+            f"✅ {self.membro.mention} aprovado."
+        )
+
+    @discord.ui.button(label="Reprovar", style=discord.ButtonStyle.red)
+    async def reprovar(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        if not any(role.id == config.CARGO_RECRUTADOR for role in interaction.user.roles):
+            await interaction.response.send_message(
+                "Você não tem permissão.",
+                ephemeral=True
+            )
+            return
+
+        role_inscrito = interaction.guild.get_role(config.CARGO_INSCRITO)
+
+        if role_inscrito:
+            await self.membro.remove_roles(role_inscrito)
+
+        await self.membro.edit(nick=None)
+
+        await interaction.response.send_message(
+            f"❌ {self.membro.mention} reprovado."
+        )
+
+
+class EditalView(discord.ui.View):
 
     @discord.ui.button(label="Realizar Inscrição", style=discord.ButtonStyle.red)
     async def inscrever(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(FormModal())
+        await interaction.response.send_modal(InscricaoModal())
+
 
 class Recrutamento(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
-    async def publicar_edital(self, ctx):
 
-        if ctx.channel.id != config.EDITAL_CHANNEL_ID:
-            return
+    @commands.Cog.listener()
+    async def on_ready(self):
 
-        embed = discord.Embed(
-            title="🚒 EDITAL DE RECRUTAMENTO",
-            description=config.EDITAL_TEXTO,
-            color=discord.Color.red()
-        )
+        guild = self.bot.get_guild(config.GUILD_ID)
+        canal = guild.get_channel(config.EDITAL_CHANNEL_ID)
 
-        await ctx.send(embed=embed, view=InscricaoView())
+        mensagens = [msg async for msg in canal.history(limit=10)]
 
-    @commands.command()
-    async def confirmar(self, ctx, member: discord.Member):
+        if not mensagens:
 
-        if ctx.channel.id != config.CONFIRMAR_INSCRICAO_CHANNEL_ID:
-            return
+            embed = discord.Embed(
+                title="🚒 EDITAL DE RECRUTAMENTO",
+                description="""
+Processo seletivo do Corpo de Bombeiros de Litorânea.
 
-        nick = member.nick
+1️⃣ Prova Escrita  
+20 questões de múltipla escolha  
+mínimo de 70% de acerto
 
-        if not nick:
-            return
+2️⃣ Teste de Aptidão Física  
+avalia comportamento e desempenho
 
-        nick = nick.replace("[INS]", "[INS-OK]")
+Para participar é necessário possuir:
 
-        if len(nick) > 32:
-            nick = nick[:32]
+Passaporte 1460  
+Valor: R$200
 
-        await member.edit(nick=nick)
+Clique no botão abaixo para se inscrever.
+""",
+                color=discord.Color.red()
+            )
 
-        role = ctx.guild.get_role(config.CARGO_INSCRICAO_REALIZADA)
+            await canal.send(embed=embed, view=EditalView())
 
-        if role:
-            await member.add_roles(role)
-
-        await ctx.send(f"Inscrição confirmada para {member.mention}")
 
 async def setup(bot):
     await bot.add_cog(Recrutamento(bot))
