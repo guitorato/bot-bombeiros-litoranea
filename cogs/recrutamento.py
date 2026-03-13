@@ -101,7 +101,8 @@ class PainelRecrutamento(discord.ui.View):
         if role_aprovado:
             await self.membro.add_roles(role_aprovado)
 
-        nick = self.membro.nick.replace("[INS]", "[INS-OK]")
+        nick_atual = self.membro.nick or self.membro.display_name
+        nick = nick_atual.replace("[INS]", "[INS-OK]")
 
         if len(nick) > 32:
             nick = nick[:32]
@@ -166,7 +167,7 @@ class Recrutamento(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
 
-        guild = self.bot.get_guild(config.GUILD_ID)
+        guild = self.bot.get_guild(config.SERVIDOR_ID)
 
         if not guild:
             return

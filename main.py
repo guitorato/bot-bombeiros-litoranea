@@ -17,7 +17,7 @@ bot = commands.Bot(
 async def on_ready():
     print(f"🚒 Bot online: {bot.user}")
 
-    guild = discord.Object(id=config.GUILD_ID)
+    guild = discord.Object(id=config.SERVIDOR_ID)
 
     try:
         synced = await bot.tree.sync(guild=guild)
