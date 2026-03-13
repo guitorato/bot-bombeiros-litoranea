@@ -3,6 +3,18 @@ from discord.ext import commands
 import config
 
 
+def montar_apelido(prefixo: str, nome: str, passaporte: str) -> str:
+    apelido = f"{prefixo} {nome} | {passaporte}"
+
+    if len(apelido) <= 32:
+        return apelido
+
+    excesso = len(apelido) - 32
+    nome_cortado = nome[:-excesso] if excesso < len(nome) else ""
+
+    return f"{prefixo} {nome_cortado} | {passaporte}"[:32]
+
+
 # -----------------------------
 # MODAL DE INSCRIÇÃO
 # -----------------------------
@@ -22,14 +34,12 @@ class InscricaoModal(discord.ui.Modal, title="Inscrição Bombeiros"):
         # -----------------------------
         # ALTERAR NICKNAME
         # -----------------------------
-        nickname = f"[INS] {self.passaporte.value} | {self.nome.value}"
+        nickname = montar_apelido("[INS]", self.nome.value, self.passaporte.value)
 
-        if len(nickname) > 32:
-            excesso = len(nickname) - 32
-            nome_cortado = self.nome.value[:-excesso]
-            nickname = f"[INS] {self.passaporte.value} | {nome_cortado}"
-
-        await member.edit(nick=nickname)
+        try:
+            await member.edit(nick=nickname)
+        except (discord.Forbidden, discord.HTTPException):
+            pass
 
         # -----------------------------
         # ADICIONAR CARGO INSCRITO
@@ -58,7 +68,7 @@ class InscricaoModal(discord.ui.Modal, title="Inscrição Bombeiros"):
 
         await canal_confirmacao.send(
             embed=embed,
-            view=PainelRecrutamento(member)
+            view=PainelRecrutamento(member, self.nome.value, self.passaporte.value)
         )
 
         await interaction.response.send_message(
@@ -72,9 +82,11 @@ class InscricaoModal(discord.ui.Modal, title="Inscrição Bombeiros"):
 # -----------------------------
 class PainelRecrutamento(discord.ui.View):
 
-    def __init__(self, membro):
+    def __init__(self, membro, nome, passaporte):
         super().__init__(timeout=None)
         self.membro = membro
+        self.nome = nome
+        self.passaporte = passaporte
 
 
     # -----------------------------
@@ -101,13 +113,12 @@ class PainelRecrutamento(discord.ui.View):
         if role_aprovado:
             await self.membro.add_roles(role_aprovado)
 
-        nick_atual = self.membro.nick or self.membro.display_name
-        nick = nick_atual.replace("[INS]", "[INS-OK]")
+        nick = montar_apelido("[INS-OK]", self.nome, self.passaporte)
 
-        if len(nick) > 32:
-            nick = nick[:32]
-
-        await self.membro.edit(nick=nick)
+        try:
+            await self.membro.edit(nick=nick)
+        except (discord.Forbidden, discord.HTTPException):
+            pass
 
         await interaction.response.send_message(
             f"✅ {self.membro.mention} foi aprovado."
