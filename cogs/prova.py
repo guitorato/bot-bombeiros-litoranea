@@ -291,8 +291,31 @@ class Prova(commands.Cog):
 
         if aprovado:
             role_etapa1 = guild.get_role(config.CARGO_ETAPA_1_OK)
-            if role_etapa1:
-                await membro.add_roles(role_etapa1)
+            role_civil = guild.get_role(config.CARGO_CIVIL)
+            roles_manter = {r.id for r in (role_etapa1, role_civil) if r}
+            roles_remover = [
+                role
+                for role in membro.roles
+                if role != guild.default_role and role.id not in roles_manter
+            ]
+            if roles_remover:
+                await membro.remove_roles(*roles_remover)
+
+            roles_adicionar = [r for r in (role_etapa1, role_civil) if r and r not in membro.roles]
+            if roles_adicionar:
+                await membro.add_roles(*roles_adicionar)
+
+            sala_taf = guild.get_channel(config.SALA_TAF_ID)
+            sala_atual = getattr(membro.voice, "channel", None)
+            if (
+                isinstance(sala_taf, discord.VoiceChannel)
+                and isinstance(sala_atual, discord.VoiceChannel)
+                and sala_atual.id == config.SALA_PROVA_ID
+            ):
+                try:
+                    await membro.move_to(sala_taf)
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
 
             if membro.nick:
                 novo_nick = membro.nick.replace("[INS-OK]", "[ETP1-OK]")
