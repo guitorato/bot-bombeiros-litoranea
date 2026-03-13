@@ -87,6 +87,14 @@ class PainelRecrutamento(discord.ui.View):
         self.membro = membro
         self.nome = nome
         self.passaporte = passaporte
+        self.decisao_realizada = False
+
+    async def _finalizar_painel(self):
+        self.decisao_realizada = True
+
+        for item in self.children:
+            if isinstance(item, discord.ui.Button):
+                item.disabled = True
 
 
     # -----------------------------
@@ -98,6 +106,13 @@ class PainelRecrutamento(discord.ui.View):
         if not any(role.id == config.CARGO_RECRUTADOR for role in interaction.user.roles):
             await interaction.response.send_message(
                 "❌ Você não tem permissão.",
+                ephemeral=True
+            )
+            return
+
+        if self.decisao_realizada:
+            await interaction.response.send_message(
+                "⚠️ Esta inscrição já foi analisada.",
                 ephemeral=True
             )
             return
@@ -120,6 +135,9 @@ class PainelRecrutamento(discord.ui.View):
         except (discord.Forbidden, discord.HTTPException):
             pass
 
+        await self._finalizar_painel()
+        await interaction.message.edit(view=self)
+
         await interaction.response.send_message(
             f"✅ {self.membro.mention} foi aprovado."
         )
@@ -138,12 +156,25 @@ class PainelRecrutamento(discord.ui.View):
             )
             return
 
+        if self.decisao_realizada:
+            await interaction.response.send_message(
+                "⚠️ Esta inscrição já foi analisada.",
+                ephemeral=True
+            )
+            return
+
         role_inscrito = interaction.guild.get_role(config.CARGO_INSCRITO)
 
         if role_inscrito:
             await self.membro.remove_roles(role_inscrito)
 
-        await self.membro.edit(nick=None)
+        try:
+            await self.membro.edit(nick=None)
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+
+        await self._finalizar_painel()
+        await interaction.message.edit(view=self)
 
         await interaction.response.send_message(
             f"❌ {self.membro.mention} foi reprovado."
@@ -189,12 +220,10 @@ class Recrutamento(commands.Cog):
             print("❌ Canal do edital não encontrado")
             return
 
-        async for msg in canal.history(limit=20):
-
+        async for msg in canal.history(limit=100):
             if msg.author == self.bot.user and msg.embeds:
                 if msg.embeds[0].title == "🚒 EDITAL DE RECRUTAMENTO":
-                    print("📋 Edital já existe")
-                    return
+                    await msg.delete()
 
         embed = discord.Embed(
             title="🚒 EDITAL DE RECRUTAMENTO",
